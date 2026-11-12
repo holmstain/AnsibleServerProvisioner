@@ -1,0 +1,52 @@
+---
+- name: Validate administrator definitions
+  ansible.builtin.assert:
+    that:
+      - item.name is match('^[a-z_][a-z0-9_-]*[$]?$')
+      - item.ssh_keys | length > 0
+      - item.ssh_keys | select('match', '^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp256) [A-Za-z0-9+/=]+( .*)?$') | list | length == item.ssh_keys | length
+    fail_msg: Each administrator needs a valid Unix name and at least one SSH public key.
+  loop: "{{ admin_users }}"
+  no_log: true
+
+- name: Create administrator accounts
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    comment: "{{ item.comment | default('System administrator') }}"
+    shell: /bin/bash
+    groups: sudo
+    append: true
+    create_home: true
+    password: "{{ item.password_hash | default(omit) }}"
+    update_password: always
+    state: present
+  loop: "{{ admin_users }}"
+  no_log: true
+
+- name: Install administrator SSH authorized keys
+  ansible.posix.authorized_key:
+    user: "{{ item.name }}"
+    key: "{{ item.ssh_keys | join('\n') }}"
+    state: present
+    exclusive: true
+  loop: "{{ admin_users }}"
+  no_log: true
+
+- name: Configure passwordless sudo for opted-in administrators
+  ansible.builtin.copy:
+    dest: "/etc/sudoers.d/90-ansible-{{ item.name }}"
+    content: "{{ item.name }} ALL=(ALL:ALL) NOPASSWD:ALL\n"
+    owner: root
+    group: root
+    mode: '0440'
+    validate: /usr/sbin/visudo -cf %s
+  loop: "{{ admin_users }}"
+  when: item.passwordless_sudo | default(false) | bool
+
+- name: Remove passwordless sudo for other administrators
+  ansible.builtin.file:
+    path: "/etc/sudoers.d/90-ansible-{{ item.name }}"
+    state: absent
+  loop: "{{ admin_users }}"
+  when: not (item.passwordless_sudo | default(false) | bool)
+

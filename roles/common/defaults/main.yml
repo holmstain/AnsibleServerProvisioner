@@ -1,0 +1,9 @@
+---
+common_timezone: Etc/UTC
+common_packages:
+  - ca-certificates
+  - curl
+  - git
+  - htop
+common_upgrade_packages: true
+

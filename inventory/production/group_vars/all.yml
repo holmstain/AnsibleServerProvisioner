@@ -1,0 +1,4 @@
+---
+# Replace the reserved sample IP in hosts.ini and add real public keys below.
+admin_users: []
+

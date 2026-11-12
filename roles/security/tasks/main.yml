@@ -1,0 +1,105 @@
+---
+- name: Validate firewall and SSH settings
+  ansible.builtin.assert:
+    that:
+      - security_ssh_port | int >= 1
+      - security_ssh_port | int <= 65535
+      - security_ssh_port | int not in (security_allowed_tcp_ports | map('int') | list)
+    fail_msg: SSH port must be valid and must not be duplicated in security_allowed_tcp_ports.
+
+- name: Install UFW, Fail2ban and OpenSSH server
+  ansible.builtin.apt:
+    name:
+      - ufw
+      - fail2ban
+      - openssh-server
+    state: present
+
+- name: Set default incoming firewall policy
+  community.general.ufw:
+    direction: incoming
+    policy: deny
+
+- name: Set default outgoing firewall policy
+  community.general.ufw:
+    direction: outgoing
+    policy: allow
+
+- name: Allow SSH before enabling the firewall
+  community.general.ufw:
+    rule: allow
+    port: "{{ security_ssh_port | string }}"
+    proto: tcp
+
+- name: Keep the current SSH connection port open during migration
+  community.general.ufw:
+    rule: allow
+    port: "{{ ansible_port | default(22) | string }}"
+    proto: tcp
+  when: (ansible_port | default(22) | int) != (security_ssh_port | int)
+
+- name: Close the previous SSH port after reconnecting on the new port
+  community.general.ufw:
+    rule: allow
+    port: "{{ security_ssh_previous_port | string }}"
+    proto: tcp
+    delete: true
+  when:
+    - (security_ssh_previous_port | int) != (security_ssh_port | int)
+    - (ansible_port | default(22) | int) == (security_ssh_port | int)
+
+- name: Allow required TCP ports
+  community.general.ufw:
+    rule: allow
+    port: "{{ item | string }}"
+    proto: tcp
+  loop: "{{ security_allowed_tcp_ports }}"
+
+- name: Allow required UDP ports
+  community.general.ufw:
+    rule: allow
+    port: "{{ item | string }}"
+    proto: udp
+  loop: "{{ security_allowed_udp_ports }}"
+
+- name: Enable UFW
+  community.general.ufw:
+    state: enabled
+
+- name: Disable Ubuntu 24.04 SSH socket activation
+  ansible.builtin.systemd_service:
+    name: ssh.socket
+    enabled: false
+    state: stopped
+  when: ansible_distribution_version == '24.04'
+
+- name: Enable the persistent SSH service
+  ansible.builtin.service:
+    name: ssh
+    enabled: true
+    state: started
+
+- name: Install SSH hardening drop-in
+  ansible.builtin.template:
+    src: 00-ansible-hardening.conf.j2
+    dest: /etc/ssh/sshd_config.d/00-ansible-hardening.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Validate and restart SSH
+
+- name: Install Fail2ban SSH jail
+  ansible.builtin.template:
+    src: sshd.local.j2
+    dest: /etc/fail2ban/jail.d/sshd.local
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart Fail2ban
+
+- name: Enable and start Fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    enabled: true
+    state: started
+

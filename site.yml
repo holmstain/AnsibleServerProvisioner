@@ -1,0 +1,36 @@
+---
+- name: Provision Ubuntu servers
+  hosts: servers
+  become: true
+  gather_facts: true
+  pre_tasks:
+    - name: Require a supported Ubuntu release
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == 'Ubuntu'
+          - ansible_distribution_version in ['22.04', '24.04']
+        fail_msg: This project supports Ubuntu 22.04 and 24.04 only.
+
+    - name: Require an administrator with a real SSH key before hardening
+      ansible.builtin.assert:
+        that:
+          - admin_users | length > 0
+          - admin_users | selectattr('name', 'defined') | list | length == admin_users | length
+          - admin_users | selectattr('ssh_keys', 'defined') | list | length == admin_users | length
+          - (admin_users | map(attribute='ssh_keys') | map('length') | min | default(0)) | int > 0
+        fail_msg: Set admin_users with real SSH public keys in the environment vars before running.
+
+    - name: Require usable sudo credentials for every administrator
+      ansible.builtin.assert:
+        that:
+          - (item.passwordless_sudo | default(false) | bool) or (item.password_hash is defined and (item.password_hash | length > 0))
+        fail_msg: Each administrator needs passwordless_sudo true or a known password_hash for sudo.
+      loop: "{{ admin_users }}"
+      no_log: true
+
+  roles:
+    - role: common
+    - role: users
+    - role: security
+    - role: docker
+

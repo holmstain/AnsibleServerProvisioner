@@ -1,0 +1,10 @@
+---
+security_ssh_port: 22
+security_ssh_previous_port: 22
+security_allowed_tcp_ports: []
+security_allowed_udp_ports: []
+security_ssh_allow_users: []
+security_fail2ban_bantime: 1h
+security_fail2ban_findtime: 10m
+security_fail2ban_maxretry: 5
+

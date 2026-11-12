@@ -1,0 +1,26 @@
+---
+- name: Refresh APT cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Upgrade installed packages
+  ansible.builtin.apt:
+    upgrade: safe
+  when: common_upgrade_packages | bool
+
+- name: Install base tools and Chrony
+  ansible.builtin.apt:
+    name: "{{ common_packages + ['chrony', 'tzdata'] }}"
+    state: present
+
+- name: Set timezone
+  community.general.timezone:
+    name: "{{ common_timezone }}"
+
+- name: Enable and start Chrony
+  ansible.builtin.service:
+    name: chrony
+    enabled: true
+    state: started
+

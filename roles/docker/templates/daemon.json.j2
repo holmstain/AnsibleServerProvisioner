@@ -1,0 +1,9 @@
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "{{ docker_daemon_log_max_size }}",
+    "max-file": "{{ docker_daemon_log_max_file }}"
+  },
+  "live-restore": {{ docker_daemon_live_restore | bool | lower }}
+}
+

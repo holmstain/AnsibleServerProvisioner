@@ -1,0 +1,21 @@
+---
+common_timezone: Etc/UTC
+common_packages:
+  - ca-certificates
+  - curl
+  - git
+  - htop
+  - jq
+  - unzip
+  - vim
+  - wget
+
+security_ssh_port: 22
+security_allowed_tcp_ports: []
+security_allowed_udp_ports: []
+security_ssh_allow_users: []
+
+docker_daemon_log_max_size: 10m
+docker_daemon_log_max_file: '3'
+docker_daemon_live_restore: true
+
